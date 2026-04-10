@@ -34,6 +34,7 @@ store/
 ```
 
 ## Full State Tree (Detailed)
+<img width="1536" height="1024" alt="stateTreeDiagram" src="https://github.com/user-attachments/assets/1fae718f-3408-40e6-b6b5-8365985bac2a" />
 
 ```
 rootStore
