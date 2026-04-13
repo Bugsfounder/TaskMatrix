@@ -138,6 +138,7 @@ PATCH  /api/tasks/:id/status
 GET /api/tasks/search?q=login
 GET /api/tasks/filter?status=todo&priority=high
 ```
+
 # Zustand
 
 Split stores:
