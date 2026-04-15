@@ -1,9 +1,30 @@
 "use client";
 
 import React from "react";
-import { Search, Bell, ChevronDown, Plus } from "lucide-react";
+import { Search, Bell, ChevronDown, LogOut } from "lucide-react";
+import { useAuthStore } from "@/store/useAuthStore";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
 
 export function TopBar() {
+  const user = useAuthStore((state) => state.user);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      Cookies.remove("auth");
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
+  };
+
+  const displayName = user?.displayName || user?.email?.split('@')[0] || "Guest";
+  const initials = displayName.substring(0, 2).toUpperCase();
+
   return (
     <header className="fixed top-0 left-0 lg:left-64 right-0 z-10 h-16 border-b border-border bg-background px-6 flex items-center justify-between">
       <div className="flex items-center gap-6">
@@ -33,14 +54,22 @@ export function TopBar() {
 
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-semibold text-foreground leading-none">Alex Rivera</p>
-            <p className="text-[10px] text-muted-foreground">Product Designer</p>
+            <p className="text-xs font-semibold text-foreground leading-none">{displayName}</p>
+            <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">{user?.email || "No email"}</p>
           </div>
-          <div className="h-9 w-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold overflow-hidden cursor-pointer">
-             AR
+          <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold overflow-hidden cursor-pointer selection:bg-transparent">
+             {initials}
           </div>
+          <button 
+            onClick={handleLogout}
+            className="ml-2 h-8 w-8 rounded-full hover:bg-red-50 dark:hover:bg-red-950 flex flex-col items-center justify-center text-red-500 transition-colors"
+            title="Log Out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </header>
   );
 }
+
