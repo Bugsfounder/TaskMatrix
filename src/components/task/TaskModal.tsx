@@ -5,40 +5,51 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Task } from "@/store/useTaskStore";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: {
+  onSave: (data: {
     title: string;
     description?: string;
     priority?: "low" | "medium" | "high";
     dueDate?: string;
   }) => void;
+  initialData?: Task | null;
 };
 
-export function TaskModal({ open, onClose, onCreate }: Props) {
+export function TaskModal({ open, onClose, onSave, initialData }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [dueDate, setDueDate] = useState("");
 
-  // Reset form whenever the modal opens
+  const isEditMode = !!initialData;
+
+  // Reset form whenever the modal opens or initialData changes
   useEffect(() => {
     if (open) {
-      setTitle("");
-      setDescription("");
-      setPriority("medium");
-      setDueDate("");
+      if (initialData) {
+        setTitle(initialData.title);
+        setDescription(initialData.description || "");
+        setPriority(initialData.priority || "medium");
+        setDueDate(initialData.dueDate || "");
+      } else {
+        setTitle("");
+        setDescription("");
+        setPriority("medium");
+        setDueDate("");
+      }
     }
-  }, [open]);
+  }, [open, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) return;
 
-    onCreate({
+    onSave({
       title: title.trim(),
       description: description.trim() || undefined,
       priority,
@@ -50,9 +61,9 @@ export function TaskModal({ open, onClose, onCreate }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Create New Task</DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit Task" : "Create New Task"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -127,7 +138,7 @@ export function TaskModal({ open, onClose, onCreate }: Props) {
               disabled={!title.trim()}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Create Task
+              {isEditMode ? "Save Changes" : "Create Task"}
             </button>
           </div>
         </form>

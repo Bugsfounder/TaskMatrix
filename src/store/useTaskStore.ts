@@ -1,11 +1,13 @@
 import { create } from 'zustand';
-import { persistence } from '@/lib/persistence';
+import { taskService } from '@/lib/taskService';
+import { useAuthStore } from './useAuthStore';
 
 export type Task = {
   id: string;
+  uid?: string;
   title: string;
   description?: string;
-  status: "todo" | "in-progress" | "done";
+  status: "todo" | "in-progress" | "done" | "archived";
   priority?: "low" | "medium" | "high";
   assignedTo?: string;
   dueDate?: string;
@@ -21,24 +23,65 @@ export type Column = {
 interface KanbanState {
   tasks: Record<string, Task>;
   columns: Record<string, Column>;
-  addTask: (task: Task) => void;
-  moveTask: (activeId: string, overId: string) => void;
-  initialize: () => void;
+  isLoading: boolean;
+  error: string | null;
+  fetchTasks: () => Promise<void>;
+  addTask: (task: Task) => Promise<void>;
+  editTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  moveTask: (activeId: string, overId: string) => Promise<void>;
+  completeSprint: () => Promise<void>;
 }
 
-export const useKanbanStore = create<KanbanState>((set) => ({
+const defaultColumns: Record<string, Column> = {
+  "todo": { id: "todo", title: "To Do", taskIds: [] },
+  "in-progress": { id: "in-progress", title: "In Progress", taskIds: [] },
+  "done": { id: "done", title: "Done", taskIds: [] }
+};
+
+export const useKanbanStore = create<KanbanState>((set, get) => ({
   tasks: {},
-  columns: {
-    "todo": { id: "todo", title: "To Do", taskIds: [] },
-    "in-progress": { id: "in-progress", title: "In Progress", taskIds: [] },
-    "done": { id: "done", title: "Done", taskIds: [] }
+  columns: defaultColumns,
+  isLoading: false,
+  error: null,
+
+  fetchTasks: async () => {
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      set({ tasks: {}, columns: defaultColumns, isLoading: false });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const dbTasks = await taskService.fetchTasks(user.uid);
+      const cols = JSON.parse(JSON.stringify(defaultColumns));
+
+      // Populate columns based on tasks
+      Object.keys(dbTasks).forEach(taskId => {
+        const t = dbTasks[taskId];
+        if (cols[t.status]) {
+          cols[t.status].taskIds.push(t.id);
+        }
+      });
+
+      set({ tasks: dbTasks, columns: cols, isLoading: false });
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to fetch tasks from database. Error: " + err.message);
+      set({ error: err.message, isLoading: false });
+    }
   },
-  addTask: (task) =>
+
+  addTask: async (task) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    const taskWithUid = { ...task, uid: user.uid };
+
+    // Optimistic UI update
     set((state) => ({
-      tasks: {
-        ...state.tasks,
-        [task.id]: task,
-      },
+      tasks: { ...state.tasks, [task.id]: taskWithUid },
       columns: {
         ...state.columns,
         [task.status]: {
@@ -46,32 +89,120 @@ export const useKanbanStore = create<KanbanState>((set) => ({
           taskIds: [...state.columns[task.status].taskIds, task.id],
         },
       },
-    })),
-  moveTask: (activeId, overId) =>
-    set((state) => {
-      const activeTask = state.tasks[activeId];
-      if (!activeTask) return state;
+    }));
 
-      const sourceColId = activeTask.status;
-      
-      // Determine destination column
-      let destColId: "todo" | "in-progress" | "done" | undefined;
-      if (state.columns[overId as keyof typeof state.columns]) {
-        destColId = overId as any;
-      } else if (state.tasks[overId]) {
-        destColId = state.tasks[overId].status;
+    try {
+      const cleanTask = Object.fromEntries(Object.entries(taskWithUid).filter(([_, v]) => v !== undefined));
+      await taskService.createTask(cleanTask as any);
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to save task. Firebase error: " + err.message);
+    }
+  },
+
+  editTask: async (taskId, updates) => {
+    // Optimistic UI update
+    set((state) => {
+      const task = state.tasks[taskId];
+      if (!task) return state;
+
+      const updatedTask = { ...task, ...updates };
+      const newState = {
+        tasks: { ...state.tasks, [taskId]: updatedTask }
+      };
+
+      // If status changed, we need to move it in the columns
+      if (updates.status && updates.status !== task.status) {
+        const oldCol = state.columns[task.status];
+        const newCol = state.columns[updates.status];
+
+        const updatedColumns = {
+          ...state.columns,
+          [task.status]: {
+             ...oldCol,
+             taskIds: oldCol.taskIds.filter(id => id !== taskId)
+          },
+          [updates.status]: {
+             ...newCol,
+             taskIds: [...newCol.taskIds, taskId]
+          }
+        };
+        return { ...newState, columns: updatedColumns };
       }
 
-      if (!destColId) return state;
+      return newState;
+    });
 
-      const sourceCol = state.columns[sourceColId];
-      const destCol = state.columns[destColId];
+    try {
+      const cleanUpdates = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined));
+      if (Object.keys(cleanUpdates).length > 0) {
+        await taskService.updateTask(taskId, cleanUpdates);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to update task. Firebase error: " + err.message);
+    }
+  },
 
-      // Reordering in same column
+  deleteTask: async (taskId) => {
+    // Optimistic UI update
+    set((state) => {
+      const task = state.tasks[taskId];
+      if (!task) return state;
+
+      const newTasks = { ...state.tasks };
+      delete newTasks[taskId];
+
+      const colId = task.status;
+      const col = state.columns[colId];
+
+      const updatedColumns = {
+        ...state.columns,
+        [colId]: {
+           ...col,
+           taskIds: col.taskIds.filter(id => id !== taskId)
+        }
+      };
+
+      return { tasks: newTasks, columns: updatedColumns };
+    });
+
+    try {
+      await taskService.deleteTask(taskId);
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to delete task. Firebase error: " + err.message);
+    }
+  },
+
+  moveTask: async (activeId, overId) => {
+    const originalState = get();
+    const state = originalState; // snapshot before change
+    
+    // Calculate new columns (copied from original moveTask logic)
+    const activeTask = state.tasks[activeId];
+    if (!activeTask) return;
+
+    const sourceColId = activeTask.status;
+    let destColId: "todo" | "in-progress" | "done" | undefined;
+    
+    if (state.columns[overId as keyof typeof state.columns]) {
+      destColId = overId as any;
+    } else if (state.tasks[overId]) {
+      destColId = state.tasks[overId].status;
+    }
+
+    if (!destColId) return;
+
+    const sourceCol = state.columns[sourceColId];
+    const destCol = state.columns[destColId];
+
+    // Optimistic Update
+    set((currentState) => {
       if (sourceColId === destColId) {
         const oldIndex = sourceCol.taskIds.indexOf(activeId);
         const newIndex = sourceCol.taskIds.indexOf(overId);
-        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return state;
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return currentState;
 
         const newTaskIds = [...sourceCol.taskIds];
         const [removed] = newTaskIds.splice(oldIndex, 1);
@@ -79,7 +210,7 @@ export const useKanbanStore = create<KanbanState>((set) => ({
 
         return {
           columns: {
-            ...state.columns,
+            ...currentState.columns,
             [sourceColId]: { ...sourceCol, taskIds: newTaskIds }
           }
         };
@@ -98,29 +229,63 @@ export const useKanbanStore = create<KanbanState>((set) => ({
 
       return {
         tasks: {
-          ...state.tasks,
-          [activeId]: { ...activeTask, status: destColId }
+          ...currentState.tasks,
+          [activeId]: { ...activeTask, status: destColId as "todo" | "in-progress" | "done" }
         },
         columns: {
-          ...state.columns,
+          ...currentState.columns,
           [sourceColId]: { ...sourceCol, taskIds: newSourceTaskIds },
           [destColId]: { ...destCol, taskIds: newDestTaskIds }
         }
       };
-    }),
-  initialize: () => {
-    const data = persistence.load();
-    if (data) {
-      set({ tasks: data.tasks, columns: data.columns });
+    });
+
+    // Note: Reordering within same column isn't persisted to DB in this basic schema
+    // since status didn't change and we lack 'order' field. 
+    // We only need to sync Firestore if status changed.
+    if (sourceColId !== destColId) {
+      try {
+        await taskService.updateTask(activeId, { status: destColId as any });
+      } catch (err: any) {
+        console.error("Failed to move task in Firebase:", err);
+        // Could revert state here
+      }
+    }
+  },
+
+  completeSprint: async () => {
+    // Collect all done tasks
+    const state = get();
+    const doneTaskIds = state.columns["done"]?.taskIds || [];
+    
+    if (doneTaskIds.length === 0) return;
+
+    // Optimistic UI Update: Move done tasks to archived and clear done column
+    set((currentState) => {
+      const newTasks = { ...currentState.tasks };
+      doneTaskIds.forEach(id => {
+        if (newTasks[id]) {
+          newTasks[id] = { ...newTasks[id], status: "archived" };
+        }
+      });
+
+      return {
+        tasks: newTasks,
+        columns: {
+          ...currentState.columns,
+          "done": { ...currentState.columns["done"], taskIds: [] }
+        }
+      };
+    });
+
+    // Background Firebase Updates using Promise.all
+    try {
+      await Promise.all(
+        doneTaskIds.map(id => taskService.updateTask(id, { status: "archived" as any }))
+      );
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to archive some tasks. Error: " + err.message);
     }
   },
 }));
-
-// Automatically save changes to local storage
-useKanbanStore.subscribe((state) => {
-  persistence.save({
-    tasks: state.tasks,
-    columns: state.columns,
-  });
-});
-

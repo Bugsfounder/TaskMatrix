@@ -1,7 +1,9 @@
 "use client";
 
-import React from "react";
-import { useKanbanStore } from "@/store/useTaskStore";
+import React, { useState, useEffect } from "react";
+import { useKanbanStore, Task } from "@/store/useTaskStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { TaskModal } from "@/components/task/TaskModal";
 import { 
   CheckCircle2, 
   Clock, 
@@ -13,12 +15,41 @@ import {
 } from "lucide-react";
 
 export default function SprintPage() {
-  const { tasks } = useKanbanStore();
+  const { tasks, fetchTasks, editTask } = useKanbanStore();
+  const { user } = useAuthStore();
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeEditTask, setActiveEditTask] = useState<Task | null>(null);
+
+  useEffect(() => {
+    if (user?.uid) {
+      fetchTasks();
+    }
+  }, [fetchTasks, user?.uid]);
+
   const allTasks = Object.values(tasks);
   
-  const sprintTasks = allTasks.filter(t => t.status === "in-progress" || t.priority === "high").slice(0, 5);
+  // High priority or in-progress tasks that aren't done
+  const sprintTasks = allTasks.filter(t => t.status !== "done" && (t.status === "in-progress" || t.priority === "high")).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
+  
   const completedCount = allTasks.filter(t => t.status === "done").length;
-  const progressPercent = Math.min(100, Math.round((completedCount / (allTasks.length || 1)) * 100));
+  const progressPercent = allTasks.length > 0 ? Math.round((completedCount / allTasks.length) * 100) : 0;
+
+  const handleEditTask = (task: Task) => {
+    setActiveEditTask(task);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveTask = (data: {
+    title: string;
+    description?: string;
+    priority?: "low" | "medium" | "high";
+    dueDate?: string;
+  }) => {
+    if (activeEditTask) {
+      editTask(activeEditTask.id, data);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8 pb-8 h-full">
@@ -42,7 +73,15 @@ export default function SprintPage() {
             <Clock className="h-4 w-4 text-amber-500" />
             8 Days Remaining
           </div>
-          <button className="flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:opacity-90 transition-all shadow-glow active:scale-95">
+          <button 
+             onClick={async () => {
+               if (window.confirm("Complete the current sprint? All 'Done' tasks will be archived.")) {
+                 await useKanbanStore.getState().completeSprint();
+                 alert("Sprint Successfully Completed!");
+               }
+             }}
+             className="flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:opacity-90 transition-all shadow-glow active:scale-95"
+          >
             Complete Sprint
           </button>
         </div>
@@ -69,7 +108,7 @@ export default function SprintPage() {
                  </div>
                  <div className="p-3 rounded-xl bg-secondary/30">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Velocity</p>
-                    <p className="text-lg font-bold text-foreground">12 pts</p>
+                    <p className="text-lg font-bold text-foreground">{(allTasks.length * 4.5).toFixed(0)} pts</p>
                  </div>
               </div>
            </div>
@@ -89,33 +128,37 @@ export default function SprintPage() {
                  <Flame className="h-4 w-4 text-rose-500" />
                  High Priority Focus
               </h3>
-              <button className="text-xs font-bold text-primary hover:underline">View All</button>
+              <button className="text-xs font-bold text-primary hover:underline transition-opacity filter hover:brightness-125">View All</button>
            </div>
 
            <div className="flex flex-col gap-3">
               {sprintTasks.length > 0 ? (
                 sprintTasks.map((task) => (
-                  <div key={task.id} className="group flex items-center justify-between p-4 rounded-2xl border border-border bg-card shadow-soft hover:shadow-card hover:border-primary/20 transition-all cursor-pointer">
+                  <div 
+                    key={task.id} 
+                    onClick={() => handleEditTask(task)}
+                    className="group flex items-center justify-between p-4 rounded-2xl border border-border bg-card shadow-soft hover:shadow-card hover:border-primary/20 transition-all cursor-pointer"
+                  >
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-secondary text-primary/40 font-bold text-xs ring-1 ring-border group-hover:bg-primary group-hover:text-white transition-all">
+                      <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-secondary text-primary/60 font-bold text-xs ring-1 ring-border group-hover:bg-primary group-hover:text-white transition-all flex-shrink-0">
                          {task.title.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                          <h4 className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">{task.title}</h4>
                          <div className="flex items-center gap-3 mt-1">
+                            <span className={`flex items-center gap-1.5 text-[10px] font-bold lowercase ${task.priority === 'high' ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                               <Flame className="h-3 w-3" />
+                               {task.priority || 'medium'} priority
+                            </span>
+                            <span className="text-muted-foreground text-xs opacity-30">•</span>
                             <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground lowercase">
                                <Clock className="h-3 w-3" />
                                {task.status.replace('-', ' ')}
                             </span>
-                            <span className="text-muted-foreground text-xs opacity-30">•</span>
-                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                               <MessageSquare className="h-3 w-3" />
-                               3 Comments
-                            </span>
                          </div>
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:text-primary transition-all" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:text-primary transition-all flex-shrink-0" />
                   </div>
                 ))
               ) : (
@@ -124,12 +167,22 @@ export default function SprintPage() {
                      <Zap className="h-6 w-6" />
                   </div>
                   <p className="text-sm font-bold text-foreground">No active sprint issues</p>
-                  <p className="text-xs mt-1 text-neutral-muted">Add some high-priority tasks to see them here.</p>
+                  <p className="text-xs mt-1 text-neutral-muted">Add some high-priority tasks in other tabs to see them here.</p>
                 </div>
               )}
            </div>
         </div>
       </div>
+      
+      <TaskModal
+        open={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setActiveEditTask(null);
+        }}
+        onSave={handleSaveTask}
+        initialData={activeEditTask}
+      />
     </div>
   );
 }
