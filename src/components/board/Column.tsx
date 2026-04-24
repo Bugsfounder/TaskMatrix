@@ -10,16 +10,7 @@ export type ColumnType = {
   taskIds: string[];
 };
 
-export type Task = {
-  id: string;
-  title: string;
-  description?: string;
-  status: "todo" | "in-progress" | "done";
-  priority?: "low" | "medium" | "high";
-  assignedTo?: string;
-  dueDate?: string;
-  createdAt: string;
-};
+import { Task } from "@/store/useTaskStore";
 
 type Props = {
   column: ColumnType;

@@ -3,17 +3,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Calendar, MessageSquare, Pencil, Trash2 } from "lucide-react";
 
-export type Task = {
-  id: string;
-  uid?: string;
-  title: string;
-  description?: string;
-  status: "todo" | "in-progress" | "done";
-  priority?: "low" | "medium" | "high";
-  assignedTo?: string;
-  dueDate?: string;
-  createdAt: string;
-};
+import { Task } from "@/store/useTaskStore";
 
 interface TaskCardProps {
   task: Task;

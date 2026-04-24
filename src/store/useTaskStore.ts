@@ -28,7 +28,7 @@ interface KanbanState {
   isLoading: boolean;
   error: string | null;
   fetchTasks: () => Promise<void>;
-  addTask: (task: Task) => Promise<void>;
+  addTask: (task: Omit<Task, 'projectId' | 'uid'>) => Promise<void>;
   editTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   moveTask: (activeId: string, overId: string) => Promise<void>;
@@ -49,7 +49,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
 
   fetchTasks: async () => {
     const user = useAuthStore.getState().user;
-    
+
     // Dynamically retrieve active project
     const { useProjectStore } = require('./useProjectStore');
     const activeProjectId = useProjectStore.getState().activeProjectId;
@@ -84,18 +84,18 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     const user = useAuthStore.getState().user;
     const { useProjectStore } = require('./useProjectStore');
     const { useSprintStore } = require('./useSprintStore');
-    
+
     const activeProjectId = useProjectStore.getState().activeProjectId;
     const activeSprintId = useSprintStore.getState().activeSprintId;
 
     if (!user || !activeProjectId) {
-       alert("You must be logged in and have an active project to create a task.");
-       return;
+      alert("You must be logged in and have an active project to create a task.");
+      return;
     }
 
-    const taskWithUid = { 
-      ...task, 
-      uid: user.uid, 
+    const taskWithUid = {
+      ...task,
+      uid: user.uid,
       projectId: activeProjectId,
       sprintId: activeSprintId || undefined
     };
@@ -140,12 +140,12 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
         const updatedColumns = {
           ...state.columns,
           [task.status]: {
-             ...oldCol,
-             taskIds: oldCol.taskIds.filter(id => id !== taskId)
+            ...oldCol,
+            taskIds: oldCol.taskIds.filter(id => id !== taskId)
           },
           [updates.status]: {
-             ...newCol,
-             taskIds: [...newCol.taskIds, taskId]
+            ...newCol,
+            taskIds: [...newCol.taskIds, taskId]
           }
         };
         return { ...newState, columns: updatedColumns };
@@ -180,8 +180,8 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       const updatedColumns = {
         ...state.columns,
         [colId]: {
-           ...col,
-           taskIds: col.taskIds.filter(id => id !== taskId)
+          ...col,
+          taskIds: col.taskIds.filter(id => id !== taskId)
         }
       };
 
@@ -199,21 +199,21 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
   moveTask: async (activeId, overId) => {
     const originalState = get();
     const state = originalState; // snapshot before change
-    
+
     // Calculate new columns (copied from original moveTask logic)
     const activeTask = state.tasks[activeId];
     if (!activeTask) return;
 
     const sourceColId = activeTask.status;
-    let destColId: "todo" | "in-progress" | "done" | undefined;
-    
+    let destColId: "todo" | "in-progress" | "done" | "archived" | undefined;
+
     if (state.columns[overId as keyof typeof state.columns]) {
       destColId = overId as any;
     } else if (state.tasks[overId]) {
       destColId = state.tasks[overId].status;
     }
 
-    if (!destColId) return;
+    if (!destColId || destColId === "archived") return;
 
     const sourceCol = state.columns[sourceColId];
     const destCol = state.columns[destColId];
@@ -278,7 +278,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     // Collect all done tasks
     const state = get();
     const doneTaskIds = state.columns["done"]?.taskIds || [];
-    
+
     const { useSprintStore } = require('./useSprintStore');
     const activeSprintId = useSprintStore.getState().activeSprintId;
 
@@ -307,10 +307,10 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       await Promise.all(
         doneTaskIds.map(id => taskService.updateTask(id, { status: "archived" as any }))
       );
-      
+
       // Also complete the sprint in the sprint store if one was active
       if (activeSprintId) {
-         await useSprintStore.getState().completeActiveSprint();
+        await useSprintStore.getState().completeActiveSprint();
       }
     } catch (err: any) {
       console.error(err);

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { useSprintStore } from "@/store/useSprintStore";
+import { useProjectStore } from "@/store/useProjectStore";
 import { StartSprintModal } from "@/components/sprint/StartSprintModal";
 
 export default function SprintPage() {
