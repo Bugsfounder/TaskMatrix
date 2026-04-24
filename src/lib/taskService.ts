@@ -5,9 +5,13 @@ import { Task } from "@/store/useTaskStore";
 const TASKS_COLLECTION = "tasks";
 
 export const taskService = {
-  // Fetch tasks for a specific user
-  async fetchTasks(uid: string): Promise<Record<string, Task>> {
-    const q = query(collection(db, TASKS_COLLECTION), where("uid", "==", uid));
+  // Fetch tasks for a specific user AND project
+  async fetchTasks(uid: string, projectId: string): Promise<Record<string, Task>> {
+    const q = query(
+      collection(db, TASKS_COLLECTION), 
+      where("uid", "==", uid),
+      where("projectId", "==", projectId)
+    );
     const querySnapshot = await getDocs(q);
     const tasks: Record<string, Task> = {};
     querySnapshot.forEach((doc) => {

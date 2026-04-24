@@ -7,9 +7,11 @@ import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
+import { useProjectStore } from "@/store/useProjectStore";
 
 export function TopBar() {
   const user = useAuthStore((state) => state.user);
+  const { projects, activeProjectId, setActiveProject } = useProjectStore();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -25,13 +27,46 @@ export function TopBar() {
   const displayName = user?.displayName || user?.email?.split('@')[0] || "Guest";
   const initials = displayName.substring(0, 2).toUpperCase();
 
+  const activeProject = activeProjectId ? projects[activeProjectId] : null;
+
   return (
     <header className="fixed top-0 left-0 lg:left-64 right-0 z-10 h-16 border-b border-border bg-background px-6 flex items-center justify-between">
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 cursor-pointer hover:bg-secondary rounded-lg px-2 py-1 transition-colors">
-          <span className="text-sm font-semibold text-foreground italic px-1 bg-primary/10 text-primary rounded">TM</span>
-          <span className="text-sm font-bold text-foreground">Project Alpha</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        <div className="relative group">
+           <div className="flex items-center gap-2 cursor-pointer hover:bg-secondary rounded-lg px-2 py-1 transition-colors">
+             <span className="text-sm font-semibold text-foreground italic px-1 bg-primary/10 text-primary rounded">TM</span>
+             <span className="text-sm font-bold text-foreground truncate max-w-[150px]">
+                {activeProject ? activeProject.title : "No Active Project"}
+             </span>
+             <ChevronDown className="h-4 w-4 text-muted-foreground" />
+           </div>
+           
+           {/* Dropdown Menu */}
+           <div className="absolute top-full left-0 mt-1 w-56 rounded-xl border border-border bg-card p-1 shadow-elevated opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none group-hover:pointer-events-auto z-50">
+             <div className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Switch Project
+             </div>
+             {Object.values(projects).length > 0 ? (
+                Object.values(projects).map(p => (
+                   <button 
+                      key={p.id}
+                      onClick={() => setActiveProject(p.id)}
+                      className={`w-full text-left flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-colors ${p.id === activeProjectId ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-secondary'}`}
+                   >
+                      <span className="truncate">{p.title}</span>
+                   </button>
+                ))
+             ) : (
+                <div className="px-2 py-2 text-xs text-muted-foreground">No projects found.</div>
+             )}
+             <div className="h-[1px] w-full bg-border my-1" />
+             <button 
+                onClick={() => router.push("/projects")}
+                className="w-full text-left flex items-center px-2 py-2 text-sm font-medium text-foreground hover:bg-secondary rounded-lg transition-colors"
+             >
+                View All Projects
+             </button>
+           </div>
         </div>
         
         <div className="hidden md:flex relative w-96 max-w-md">

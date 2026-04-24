@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useProjectStore } from "@/store/useProjectStore";
+import { useSprintStore } from "@/store/useSprintStore";
 import Cookies from "js-cookie";
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -19,6 +21,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
         });
+        
+        // Fetch projects & Sprints on login
+        useProjectStore.getState().fetchProjects();
+        useSprintStore.getState().fetchSprints();
+
         // Ensure cookie stays synced
         Cookies.set("auth", "true", { expires: 7 });
       } else {
