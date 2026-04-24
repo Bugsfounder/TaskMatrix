@@ -1,10 +1,11 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, MessageSquare, MoreHorizontal } from "lucide-react";
+import { Calendar, MessageSquare, Pencil, Trash2 } from "lucide-react";
 
 export type Task = {
   id: string;
+  uid?: string;
   title: string;
   description?: string;
   status: "todo" | "in-progress" | "done";
@@ -16,6 +17,8 @@ export type Task = {
 
 interface TaskCardProps {
   task: Task;
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 const priorityConfig = {
@@ -24,7 +27,7 @@ const priorityConfig = {
   high: { dot: "bg-rose-400", bg: "bg-rose-50 text-rose-700 border-rose-100" },
 };
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit, onDelete }) => {
   const {
     attributes,
     listeners,
@@ -55,9 +58,26 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
         <h3 className="text-sm font-bold tracking-tight text-foreground leading-snug group-hover:text-primary transition-colors">
           {task.title}
         </h3>
-        <button className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all">
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {onEdit && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onEdit(task); }}
+              className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors pointer-events-auto"
+              title="Edit Task"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
+              className="h-6 w-6 flex items-center justify-center rounded-md text-rose-600 hover:bg-rose-50 transition-colors pointer-events-auto"
+              title="Delete Task"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {task.description && (

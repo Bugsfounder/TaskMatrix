@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CheckSquare,
+  Columns,
   FolderKanban,
   Database,
   Zap,
@@ -14,7 +15,7 @@ import {
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-  { icon: CheckSquare, label: "My Tasks", href: "/tasks" },
+  { icon: Columns, label: "Board", href: "/board" },
   { icon: FolderKanban, label: "Projects", href: "/projects" },
   { icon: Database, label: "Backlog", href: "/backlog" },
   { icon: Zap, label: "Sprint", href: "/sprint" },

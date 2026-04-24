@@ -24,6 +24,8 @@ export type Task = {
 type Props = {
   column: ColumnType;
   tasks: Task[];
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
 };
 
 const columnStyles = {
@@ -32,7 +34,7 @@ const columnStyles = {
   "done": "border-t-emerald-400"
 };
 
-export default function Column({ column, tasks }: Props) {
+export default function Column({ column, tasks, onEdit, onDelete }: Props) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
@@ -53,7 +55,10 @@ export default function Column({ column, tasks }: Props) {
             {tasks.length}
           </span>
         </div>
-        <button className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors">
+        <button 
+          onClick={() => alert(`Column settings for "${column.title}" (Rename, Clear, Delete) coming soon!`)}
+          className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
+        >
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </div>
@@ -61,7 +66,12 @@ export default function Column({ column, tasks }: Props) {
       <div className="flex flex-col space-y-4 flex-1">
         <SortableContext items={column.taskIds} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard 
+               key={task.id} 
+               task={task as any} 
+               onEdit={onEdit as any} 
+               onDelete={onDelete} 
+            />
           ))}
 
           {tasks.length === 0 && (
